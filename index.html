@@ -15,82 +15,198 @@ h1{color:#65e7ff;text-align:center;letter-spacing:3px}
 p{text-align:center;color:#aabbd5;line-height:1.6}
 #chat{margin:25px 0;display:flex;flex-direction:column;gap:12px}
 .msg{background:#121f35;border:1px solid #29415f;padding:14px;border-radius:14px;overflow-wrap:anywhere;line-height:1.5}
-.user{align-self:flex-end;background:#17364b}
+.user{align-self:flex-end;background:#17364b;max-width:90%}
 form{display:flex;gap:8px;position:sticky;bottom:8px;background:#070b17;padding:8px 0}
 input{width:100%;min-width:0;background:#121f35;color:white;border:1px solid #38516f;border-radius:12px;padding:13px;font-size:16px}
-button{border:0;border-radius:12px;padding:12px;background:#65e7ff;color:#06111c;font-weight:bold}
+button{border:0;border-radius:12px;padding:12px;background:#65e7ff;color:#06111c;font-weight:bold;cursor:pointer}
 #mic{background:#18364d;color:#65e7ff}
 .small{font-size:12px}
+@media(max-width:420px){form{gap:5px}button{padding:10px}}
 </style>
 </head>
 <body>
 <main>
 <h1>✦ AIRA JARVIS</h1>
-<div class="orb">✧</div>
+<div class="orb" id="orb">✧</div>
 <p>Your Personal AI Assistant</p>
 <p>ગુજરાતી · हिन्दी · English</p>
-<div id="chat">
-<div class="msg">નમસ્તે! હું Aira છું. માઇક્રોફોન દબાવો અથવા મેસેજ લખો.</div>
+
+<div id="chat" aria-live="polite">
+<div class="msg">નમસ્તે! હું Aira છું. માઇક્રોફોન દબાવો અને બોલો. બોલવાનું પૂરું થયા પછી હું આપમેળે જવાબ આપીશ.</div>
 </div>
+
 <form id="form">
-<input id="message" placeholder="Talk to JARVIS..." required>
-<button type="button" id="mic">🎙️</button>
+<input id="message" placeholder="Talk to JARVIS..." autocomplete="off" required>
+<button type="button" id="mic" aria-label="Start voice">🎙️</button>
 <button type="submit">Send</button>
 </form>
+
 <p class="small" id="status">System online · Demo mode</p>
-<p class="small">Real AI connection will be added in the next step.</p>
+<p class="small">Voice auto-send enabled · Real AI backend not connected yet.</p>
 </main>
+
 <script>
 const form=document.getElementById('form');
 const input=document.getElementById('message');
 const chat=document.getElementById('chat');
 const status=document.getElementById('status');
+const mic=document.getElementById('mic');
+const orb=document.getElementById('orb');
+
 let voice=true;
-function say(text){
- if(voice && 'speechSynthesis' in window){
-  speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);
-  u.lang='en-IN';
-  speechSynthesis.speak(u);
- }
+let recognition=null;
+let listening=false;
+let autoSend=false;
+let speaking=false;
+
+function addMessage(text,type){
+ const el=document.createElement('div');
+ el.className='msg'+(type==='user'?' user':'');
+ el.textContent=text;
+ chat.appendChild(el);
+ chat.scrollTop=chat.scrollHeight;
 }
+
+function say(text){
+ if(!voice || !('speechSynthesis' in window)){
+  status.textContent='Reply ready.';
+  return;
+ }
+ speechSynthesis.cancel();
+ const utterance=new SpeechSynthesisUtterance(text);
+ utterance.lang=/[\u0A80-\u0AFF]/.test(text)?'gu-IN':
+               (/[\u0900-\u097F]/.test(text)?'hi-IN':'en-IN');
+ utterance.rate=1;
+ utterance.onstart=()=>{
+  speaking=true;
+  orb.style.boxShadow='0 0 45px #65e7ff';
+  status.textContent='JARVIS is speaking...';
+ };
+ utterance.onend=()=>{
+  speaking=false;
+  orb.style.boxShadow='0 0 35px #168bb8';
+  status.textContent='System online';
+ };
+ utterance.onerror=()=>{
+  speaking=false;
+  status.textContent='Voice playback unavailable.';
+ };
+ speechSynthesis.speak(utterance);
+}
+
+function getDemoReply(text){
+ const t=text.toLowerCase();
+
+ if(t.includes('time')||text.includes('સમય')||text.includes('समय')){
+  return 'The current time is '+new Date().toLocaleTimeString()+'.';
+ }
+
+ if(t.includes('date')||text.includes('તારીખ')||text.includes('तारीख')){
+  return 'Today is '+new Date().toLocaleDateString()+'.';
+ }
+
+ if(t.includes('hello')||t.includes('hi')||
+    text.includes('નમસ્તે')||text.includes('હેલો')||
+    text.includes('नमस्ते')){
+  return 'Hello! Aira JARVIS is ready. How can I help you?';
+ }
+
+ if(t.includes('your name')||t.includes('who are you')||
+    text.includes('તમારું નામ')||text.includes('તમારું નામ શું છે')){
+  return 'I am Aira JARVIS, your personal assistant.';
+ }
+
+ return 'I received your message: '+text+
+ '. I am currently in demo mode. Connect a secure AI backend to get intelligent answers to general questions.';
+}
+
 form.addEventListener('submit',function(e){
  e.preventDefault();
  const text=input.value.trim();
  if(!text)return;
- const u=document.createElement('div');
- u.className='msg user';
- u.textContent=text;
- chat.appendChild(u);
- const r=document.createElement('div');
- r.className='msg';
- const t=text.toLowerCase();
- if(t.includes('time')||text.includes('સમય')){
-  r.textContent='The current time is '+new Date().toLocaleTimeString()+'.';
- }else if(t.includes('hello')||t.includes('hi')||text.includes('નમસ્તે')){
-  r.textContent='Hello! Aira JARVIS is ready. How can I help you?';
- }else{
-  r.textContent='I received your message. My real AI brain is not connected yet. We will connect it securely in the next step.';
- }
- chat.appendChild(r);
- chat.scrollTop=chat.scrollHeight;
- say(r.textContent);
+
+ addMessage(text,'user');
  input.value='';
+
+ const reply=getDemoReply(text);
+ addMessage(reply,'bot');
+ chat.scrollTop=chat.scrollHeight;
+ say(reply);
 });
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-document.getElementById('mic').addEventListener('click',function(){
- if(!SR){
+
+const SpeechRecognition=
+ window.SpeechRecognition||window.webkitSpeechRecognition;
+
+if(SpeechRecognition){
+ recognition=new SpeechRecognition();
+ recognition.lang='en-IN';
+ recognition.interimResults=false;
+ recognition.maxAlternatives=1;
+ recognition.continuous=false;
+
+ recognition.onstart=()=>{
+  listening=true;
+  mic.textContent='⏹️';
+  status.textContent='Listening... Speak now.';
+  orb.style.boxShadow='0 0 45px #65e7ff';
+ };
+
+ recognition.onresult=(event)=>{
+  const transcript=event.results[0][0].transcript.trim();
+  if(!transcript)return;
+
+  input.value=transcript;
+  status.textContent='Voice captured. Sending automatically...';
+
+  if(autoSend){
+   form.requestSubmit();
+  }
+ };
+
+ recognition.onerror=(event)=>{
+  status.textContent='Voice error: '+event.error+
+   '. Check microphone permission and try again.';
+ };
+
+ recognition.onend=()=>{
+  listening=false;
+  mic.textContent='🎙️';
+  orb.style.boxShadow='0 0 35px #168bb8';
+
+  if(status.textContent==='Listening... Speak now.'){
+   status.textContent='No speech detected. Tap microphone and try again.';
+  }
+ };
+
+ mic.addEventListener('click',()=>{
+  if(!recognition){
+   status.textContent='Voice input is not supported. Try Chrome.';
+   return;
+  }
+
+  if(listening){
+   recognition.stop();
+   return;
+  }
+
+  if(speaking && 'speechSynthesis' in window){
+   speechSynthesis.cancel();
+  }
+
+  autoSend=true;
+  try{
+   recognition.start();
+  }catch(error){
+   status.textContent='Please wait a moment and tap the microphone again.';
+  }
+ });
+
+}else{
+ mic.addEventListener('click',()=>{
   status.textContent='Voice input is not supported in this browser. Try Chrome.';
-  return;
- }
- const rec=new SR();
- rec.lang='en-IN';
- rec.onstart=()=>status.textContent='Listening...';
- rec.onresult=e=>{input.value=e.results[0][0].transcript;status.textContent='Voice captured. Press Send.'};
- rec.onerror=()=>status.textContent='Allow microphone access and try again.';
- rec.onend=()=>{if(status.textContent==='Listening...')status.textContent='System online';};
- try{rec.start();}catch(e){status.textContent='Please try again.';}
-});
+ });
+}
 </script>
 </body>
 </html>
+2

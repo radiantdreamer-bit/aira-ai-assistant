@@ -1,123 +1,86 @@
 
-const ALLOWED_ORIGIN = "https://radiantdreamer-bit.github.io";
-const MODEL = "gemini-3.8-flash";
+<!DOCTYPE html>
+<html lang="gu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIRA JARVIS</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#070b15;color:#f4f7ff;font-family:Arial,sans-serif;min-height:100vh}
+main{max-width:760px;margin:auto;padding:24px 16px;display:flex;flex-direction:column;min-height:100vh}
+header{text-align:center;color:#65e7ff;font-size:clamp(26px,6vw,42px);font-weight:bold;letter-spacing:2px}
+.orb{width:150px;height:150px;border:3px solid #65e7ff;border-radius:50%;margin:30px auto;display:grid;place-items:center;color:#65e7ff;font-size:65px;box-shadow:0 0 35px #168bb866}
+.sub{text-align:center;color:#b7c9e8;margin-bottom:24px}
+#chat{display:flex;flex-direction:column;gap:12px;flex:1}
+.msg{padding:14px;border:1px solid #304563;border-radius:18px;background:#142138;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.user{align-self:flex-end;background:#17394b;max-width:90%}
+.assistant{align-self:stretch}
+form{display:flex;gap:8px;margin-top:18px;position:sticky;bottom:8px;background:#070b15;padding:6px 0}
+input{flex:1;min-width:0;padding:15px;border-radius:14px;border:1px solid #405776;background:#142138;color:white;font-size:16px}
+button{padding:12px 16px;border:0;border-radius:14px;background:#65e7ff;color:#07121c;font-weight:bold;font-size:16px}
+#status{text-align:center;color:#8da4c7;font-size:13px;margin-top:12px}
+</style>
+</head>
+<body>
+<main>
+<header>✦ AIRA JARVIS</header>
+<div class="orb">✧</div>
+<div class="sub">Your Personal AI Assistant<br>ગુજરાતી · हिन्दी · English</div>
+<div id="chat">
+<div class="msg assistant">નમસ્તે! હું Aira છું. મને તમારો પ્રશ્ન પૂછો.</div>
+</div>
+<form id="form">
+<input id="message" placeholder="તમારો પ્રશ્ન લખો..." autocomplete="off" required>
+<button id="send" type="submit">Send</button>
+</form>
+<div id="status">System online</div>
+</main>
+<script>
+const API="https://aira-jarvis-brain.kishansinhc125.workers.dev";
+const form=document.getElementById("form");
+const input=document.getElementById("message");
+const chat=document.getElementById("chat");
+const status=document.getElementById("status");
+const send=document.getElementById("send");
 
-function json(data, status, origin) {
-  const headers = {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-    "Vary": "Origin"
-  };
-
-  if (origin === ALLOWED_ORIGIN) {
-    headers["Access-Control-Allow-Origin"] = origin;
-  }
-
-  return new Response(JSON.stringify(data), { status, headers });
+function addMessage(text,who){
+ const el=document.createElement("div");
+ el.className="msg "+who;
+ el.textContent=text;
+ chat.appendChild(el);
+ el.scrollIntoView({behavior:"smooth",block:"end"});
+ return el;
 }
 
-export default {
-  async fetch(request, env) {
-    const origin = request.headers.get("Origin");
-    const url = new URL(request.url);
-
-    // Health check: opening the Worker URL directly
-    if (request.method === "GET" && url.pathname === "/") {
-      return json({
-        ok: true,
-        service: "Aira AI Backend",
-        message: "Backend is running"
-      }, 200, origin);
-    }
-
-    if (request.method === "OPTIONS") {
-      if (origin !== ALLOWED_ORIGIN) {
-        return new Response(null, { status: 403 });
-      }
-
-      return new Response(null, {
-        status: 204,
-        headers: {
-          "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
-          "Access-Control-Max-Age": "86400",
-          "Vary": "Origin"
-        }
-      });
-    }
-
-    if (request.method !== "POST") {
-      return json({ error: "Method not allowed" }, 405, origin);
-    }
-
-    if (origin !== ALLOWED_ORIGIN) {
-      return json({ error: "Origin not allowed" }, 403, origin);
-    }
-
-    if (!env.GEMINI_API_KEY) {
-      return json({ error: "Backend API secret is not configured" }, 500, origin);
-    }
-
-    try {
-      const body = await request.json();
-      const message = typeof body.message === "string"
-        ? body.message.trim()
-        : "";
-
-      if (!message) {
-        return json({ error: "Message is required" }, 400, origin);
-      }
-
-      if (message.length > 4000) {
-        return json({ error: "Message is too long" }, 400, origin);
-      }
-
-      const apiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": env.GEMINI_API_KEY
-          },
-          body: JSON.stringify({
-            systemInstruction: {
-              parts: [{
-                text: "You are Aira JARVIS, a helpful personal AI assistant. Answer clearly and concisely. Respond in the language the user uses: Gujarati, Hindi, or English."
-              }]
-            },
-            contents: [{
-              role: "user",
-              parts: [{ text: message }]
-            }]
-          })
-        }
-      );
-
-      const result = await apiResponse.json();
-
-      if (!apiResponse.ok) {
-        console.error("Gemini API status:", apiResponse.status);
-        return json({
-          error: "AI provider request failed",
-          status: apiResponse.status
-        }, 502, origin);
-      }
-
-      const reply = result.candidates?.[0]?.content?.parts
-        ?.map(part => part.text || "")
-        .join("")
-        .trim();
-
-      if (!reply) {
-        return json({ error: "AI returned an empty response" }, 502, origin);
-      }
-
-      return json({ reply }, 200, origin);
-    } catch (error) {
-      console.error("Aira backend error:", error);
-      return json({ error: "Backend request failed" }, 500, origin);
-    }
-  }
-};
+form.addEventListener("submit",async e=>{
+ e.preventDefault();
+ const text=input.value.trim();
+ if(!text)return;
+ addMessage(text,"user");
+ input.value="";
+ send.disabled=true;
+ status.textContent="Aira વિચારી રહી છે...";
+ const reply=addMessage("જવાબ મેળવી રહી છું...","assistant");
+ try{
+  const response=await fetch(API,{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({message:text})
+  });
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.error||"Request failed");
+  if(!data.reply)throw new Error("AI તરફથી જવાબ મળ્યો નથી.");
+  reply.textContent=data.reply;
+  status.textContent="System online";
+ }catch(err){
+  reply.textContent="કનેક્શનમાં સમસ્યા છે: "+err.message;
+  status.textContent="Connection error";
+ }finally{
+  send.disabled=false;
+  input.focus();
+ }
+});
+</script>
+</body>
+</html>

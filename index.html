@@ -1,212 +1,123 @@
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#070b17">
-<title>AIRA JARVIS</title>
-<style>
-*{box-sizing:border-box}
-body{margin:0;background:#070b17;color:white;font-family:Arial,sans-serif}
-main{max-width:750px;margin:auto;padding:24px 16px}
-h1{color:#65e7ff;text-align:center;letter-spacing:3px}
-.orb{margin:30px auto;width:130px;height:130px;border:2px solid #65e7ff;border-radius:50%;display:grid;place-items:center;box-shadow:0 0 35px #168bb8;color:#65e7ff;font-size:48px;background:#10233e}
-p{text-align:center;color:#aabbd5;line-height:1.6}
-#chat{margin:25px 0;display:flex;flex-direction:column;gap:12px}
-.msg{background:#121f35;border:1px solid #29415f;padding:14px;border-radius:14px;overflow-wrap:anywhere;line-height:1.5}
-.user{align-self:flex-end;background:#17364b;max-width:90%}
-form{display:flex;gap:8px;position:sticky;bottom:8px;background:#070b17;padding:8px 0}
-input{width:100%;min-width:0;background:#121f35;color:white;border:1px solid #38516f;border-radius:12px;padding:13px;font-size:16px}
-button{border:0;border-radius:12px;padding:12px;background:#65e7ff;color:#06111c;font-weight:bold;cursor:pointer}
-#mic{background:#18364d;color:#65e7ff}
-.small{font-size:12px}
-@media(max-width:420px){form{gap:5px}button{padding:10px}}
-</style>
-</head>
-<body>
-<main>
-<h1>✦ AIRA JARVIS</h1>
-<div class="orb" id="orb">✧</div>
-<p>Your Personal AI Assistant</p>
-<p>ગુજરાતી · हिन्दी · English</p>
+const ALLOWED_ORIGIN = "https://radiantdreamer-bit.github.io";
+const MODEL = "gemini-3.8-flash";
 
-<div id="chat" aria-live="polite">
-<div class="msg">નમસ્તે! હું Aira છું. માઇક્રોફોન દબાવો અને બોલો. બોલવાનું પૂરું થયા પછી હું આપમેળે જવાબ આપીશ.</div>
-</div>
+function json(data, status, origin) {
+  const headers = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Vary": "Origin"
+  };
 
-<form id="form">
-<input id="message" placeholder="Talk to JARVIS..." autocomplete="off" required>
-<button type="button" id="mic" aria-label="Start voice">🎙️</button>
-<button type="submit">Send</button>
-</form>
+  if (origin === ALLOWED_ORIGIN) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
 
-<p class="small" id="status">System online · Demo mode</p>
-<p class="small">Voice auto-send enabled · Real AI backend not connected yet.</p>
-</main>
-
-<script>
-const form=document.getElementById('form');
-const input=document.getElementById('message');
-const chat=document.getElementById('chat');
-const status=document.getElementById('status');
-const mic=document.getElementById('mic');
-const orb=document.getElementById('orb');
-
-let voice=true;
-let recognition=null;
-let listening=false;
-let autoSend=false;
-let speaking=false;
-
-function addMessage(text,type){
- const el=document.createElement('div');
- el.className='msg'+(type==='user'?' user':'');
- el.textContent=text;
- chat.appendChild(el);
- chat.scrollTop=chat.scrollHeight;
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
-function say(text){
- if(!voice || !('speechSynthesis' in window)){
-  status.textContent='Reply ready.';
-  return;
- }
- speechSynthesis.cancel();
- const utterance=new SpeechSynthesisUtterance(text);
- utterance.lang=/[\u0A80-\u0AFF]/.test(text)?'gu-IN':
-               (/[\u0900-\u097F]/.test(text)?'hi-IN':'en-IN');
- utterance.rate=1;
- utterance.onstart=()=>{
-  speaking=true;
-  orb.style.boxShadow='0 0 45px #65e7ff';
-  status.textContent='JARVIS is speaking...';
- };
- utterance.onend=()=>{
-  speaking=false;
-  orb.style.boxShadow='0 0 35px #168bb8';
-  status.textContent='System online';
- };
- utterance.onerror=()=>{
-  speaking=false;
-  status.textContent='Voice playback unavailable.';
- };
- speechSynthesis.speak(utterance);
-}
+export default {
+  async fetch(request, env) {
+    const origin = request.headers.get("Origin");
+    const url = new URL(request.url);
 
-function getDemoReply(text){
- const t=text.toLowerCase();
+    // Health check: opening the Worker URL directly
+    if (request.method === "GET" && url.pathname === "/") {
+      return json({
+        ok: true,
+        service: "Aira AI Backend",
+        message: "Backend is running"
+      }, 200, origin);
+    }
 
- if(t.includes('time')||text.includes('સમય')||text.includes('समय')){
-  return 'The current time is '+new Date().toLocaleTimeString()+'.';
- }
+    if (request.method === "OPTIONS") {
+      if (origin !== ALLOWED_ORIGIN) {
+        return new Response(null, { status: 403 });
+      }
 
- if(t.includes('date')||text.includes('તારીખ')||text.includes('तारीख')){
-  return 'Today is '+new Date().toLocaleDateString()+'.';
- }
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Max-Age": "86400",
+          "Vary": "Origin"
+        }
+      });
+    }
 
- if(t.includes('hello')||t.includes('hi')||
-    text.includes('નમસ્તે')||text.includes('હેલો')||
-    text.includes('नमस्ते')){
-  return 'Hello! Aira JARVIS is ready. How can I help you?';
- }
+    if (request.method !== "POST") {
+      return json({ error: "Method not allowed" }, 405, origin);
+    }
 
- if(t.includes('your name')||t.includes('who are you')||
-    text.includes('તમારું નામ')||text.includes('તમારું નામ શું છે')){
-  return 'I am Aira JARVIS, your personal assistant.';
- }
+    if (origin !== ALLOWED_ORIGIN) {
+      return json({ error: "Origin not allowed" }, 403, origin);
+    }
 
- return 'I received your message: '+text+
- '. I am currently in demo mode. Connect a secure AI backend to get intelligent answers to general questions.';
-}
+    if (!env.GEMINI_API_KEY) {
+      return json({ error: "Backend API secret is not configured" }, 500, origin);
+    }
 
-form.addEventListener('submit',function(e){
- e.preventDefault();
- const text=input.value.trim();
- if(!text)return;
+    try {
+      const body = await request.json();
+      const message = typeof body.message === "string"
+        ? body.message.trim()
+        : "";
 
- addMessage(text,'user');
- input.value='';
+      if (!message) {
+        return json({ error: "Message is required" }, 400, origin);
+      }
 
- const reply=getDemoReply(text);
- addMessage(reply,'bot');
- chat.scrollTop=chat.scrollHeight;
- say(reply);
-});
+      if (message.length > 4000) {
+        return json({ error: "Message is too long" }, 400, origin);
+      }
 
-const SpeechRecognition=
- window.SpeechRecognition||window.webkitSpeechRecognition;
+      const apiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": env.GEMINI_API_KEY
+          },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{
+                text: "You are Aira JARVIS, a helpful personal AI assistant. Answer clearly and concisely. Respond in the language the user uses: Gujarati, Hindi, or English."
+              }]
+            },
+            contents: [{
+              role: "user",
+              parts: [{ text: message }]
+            }]
+          })
+        }
+      );
 
-if(SpeechRecognition){
- recognition=new SpeechRecognition();
- recognition.lang='en-IN';
- recognition.interimResults=false;
- recognition.maxAlternatives=1;
- recognition.continuous=false;
+      const result = await apiResponse.json();
 
- recognition.onstart=()=>{
-  listening=true;
-  mic.textContent='⏹️';
-  status.textContent='Listening... Speak now.';
-  orb.style.boxShadow='0 0 45px #65e7ff';
- };
+      if (!apiResponse.ok) {
+        console.error("Gemini API status:", apiResponse.status);
+        return json({
+          error: "AI provider request failed",
+          status: apiResponse.status
+        }, 502, origin);
+      }
 
- recognition.onresult=(event)=>{
-  const transcript=event.results[0][0].transcript.trim();
-  if(!transcript)return;
+      const reply = result.candidates?.[0]?.content?.parts
+        ?.map(part => part.text || "")
+        .join("")
+        .trim();
 
-  input.value=transcript;
-  status.textContent='Voice captured. Sending automatically...';
+      if (!reply) {
+        return json({ error: "AI returned an empty response" }, 502, origin);
+      }
 
-  if(autoSend){
-   form.requestSubmit();
+      return json({ reply }, 200, origin);
+    } catch (error) {
+      console.error("Aira backend error:", error);
+      return json({ error: "Backend request failed" }, 500, origin);
+    }
   }
- };
-
- recognition.onerror=(event)=>{
-  status.textContent='Voice error: '+event.error+
-   '. Check microphone permission and try again.';
- };
-
- recognition.onend=()=>{
-  listening=false;
-  mic.textContent='🎙️';
-  orb.style.boxShadow='0 0 35px #168bb8';
-
-  if(status.textContent==='Listening... Speak now.'){
-   status.textContent='No speech detected. Tap microphone and try again.';
-  }
- };
-
- mic.addEventListener('click',()=>{
-  if(!recognition){
-   status.textContent='Voice input is not supported. Try Chrome.';
-   return;
-  }
-
-  if(listening){
-   recognition.stop();
-   return;
-  }
-
-  if(speaking && 'speechSynthesis' in window){
-   speechSynthesis.cancel();
-  }
-
-  autoSend=true;
-  try{
-   recognition.start();
-  }catch(error){
-   status.textContent='Please wait a moment and tap the microphone again.';
-  }
- });
-
-}else{
- mic.addEventListener('click',()=>{
-  status.textContent='Voice input is not supported in this browser. Try Chrome.';
- });
-}
-</script>
-</body>
-</html>
-2
+};
